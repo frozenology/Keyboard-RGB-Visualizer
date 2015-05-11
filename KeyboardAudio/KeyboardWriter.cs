@@ -7,10 +7,11 @@
 namespace KeybaordAudio
 {
     using System;
+    using System.Drawing;
     using System.Linq;
     using System.Runtime.InteropServices;
 
-    public class KeyboardWriter : IWriter
+    public class KeyboardWriter 
     {
         #region pInvoke Imports
 
@@ -183,7 +184,7 @@ namespace KeybaordAudio
             1.5f, 1f, 1.25f, 6.5f, 1.25f, 1f, 1f, 1.5f, -.5f, 1f, 1f, 1f, -.5f, 2f, 1f, 1f, 0f,
         };
 
-        private byte[,] ledMatrix = new byte[7, 92];
+        public byte[,] ledMatrix = new byte[7, 92];
 
         private byte[] redValues = new byte[144];
         private byte[] greenValues = new byte[144];
@@ -203,37 +204,39 @@ namespace KeybaordAudio
             }
         }
 
-        public void Write(int iter, byte[] fftData)
+        public void WriteColor(byte R, byte G, byte B)
         {
-            // Rainbow to key lights
             for (int x = 0; x < 91; x++)
-            {
                 for (int y = 0; y < 7; y++)
-                {
-                    this.red = (byte)(1.5f * (Math.Sin((x / 92.0f) * 2 * 3.14f) + 1));
-                    this.grn = (byte)(1.5f * (Math.Sin(((x / 92.0f) * 2 * 3.14f) - (6.28f / 3)) + 1));
-                    this.blu = (byte)(1.5f * (Math.Sin(((x / 92.0f) * 2 * 3.14f) + (6.28f / 3)) + 1));
+                    this.SetLed(x, y, R, G, B);
+        }
 
-                    this.SetLed((x + iter) % 92, y, red, grn, blu);
-                }
-            }
-
+        public void WriteAudio(double[] fftData)
+        {
             // FFT Data to key lights
             for (int i = 0; i < 91; i++)
             {
-                for (int k = 0; k < 7; k++)
+                for (int k = 6; k >= 0; k--)
                 {
                     if (fftData[(int)(i * 2.1 + 1)] > (255 / (15 + (i * 0.8))) * (7 - k))
                     {
-                        this.SetLed(i, k, 0x07, 0x07, 0x07);
+                        this.SetLed(i, k, 255, 255, 255);
                     }
                 }
             }
-
-            UpdateKeyboard();
         }
 
-        private void SetLed(int x, int y, int r, int g, int b)
+        public Color GetLed(int x, int y)
+        {
+            int led = this.ledMatrix[y, x];
+            if (led >= 144)
+                return Color.Black;
+            return Color.FromArgb((this.redValues[led]),
+            (this.greenValues[led]),
+            (this.blueValues[led]));
+        }
+
+        public void SetLed(int x, int y, int r, int g, int b)
         {
             int led = this.ledMatrix[y, x];
 
@@ -241,21 +244,21 @@ namespace KeybaordAudio
             {
                 return;
             }
-
-            if (r > 7) r = 7;
-            if (g > 7) g = 7;
-            if (b > 7) b = 7;
-
+            /*
+            r = r >> 5;
+            g = g >> 5;
+            b = b >> 5;
+            
             r = 7 - r;
             g = 7 - g;
             b = 7 - b;
-
+            */
             this.redValues[led] = (byte)r;
             this.greenValues[led] = (byte)g;
             this.blueValues[led] = (byte)b;
         }
 
-        private int InitKeyboard()
+        public int InitKeyboard()
         {
             Console.WriteLine("Searching for Corsair K70 RGB keyboard...");
 
@@ -405,7 +408,7 @@ namespace KeybaordAudio
             return isMatch;
         }
 
-        private void UpdateKeyboard()
+        public void UpdateKeyboard()
         {
             // Perform USB control message to keyboard
             //
@@ -437,32 +440,44 @@ namespace KeybaordAudio
 
             for (int i = 0; i < 60; i++)
             {
-                this.dataPacket[0][i + 4] = (byte)(this.redValues[i * 2 + 1] << 4 | this.redValues[i * 2]);
+                this.dataPacket[0][i + 4] = (byte)(
+                    (7 - (this.redValues[i * 2 + 1] >> 5)) << 4 | 
+                    (7 - (this.redValues[i * 2] >> 5)));
             }
 
             for (int i = 0; i < 12; i++)
             {
-                this.dataPacket[1][i + 4] = (byte)(this.redValues[i * 2 + 121] << 4 | this.redValues[i * 2 + 120]);
+                this.dataPacket[1][i + 4] = (byte)(
+                    (7 - (this.redValues[i * 2 + 121] >> 5)) << 4 |
+                    (7 - (this.redValues[i * 2 + 120] >> 5)));
             }
 
             for (int i = 0; i < 48; i++)
             {
-                this.dataPacket[1][i + 16] = (byte)(this.greenValues[i * 2 + 1] << 4 | this.greenValues[i * 2]);
+                this.dataPacket[1][i + 16] = (byte)(
+                    (7 - (this.greenValues[i * 2 + 1] >> 5)) << 4 | 
+                    (7 - (this.greenValues[i * 2] >> 5)));
             }
 
             for (int i = 0; i < 24; i++)
             {
-                this.dataPacket[2][i + 4] = (byte)(this.greenValues[i * 2 + 97] << 4 | this.greenValues[i * 2 + 96]);
+                this.dataPacket[2][i + 4] = (byte)(
+                    (7 - (this.greenValues[i * 2 + 97] >> 5)) << 4 | 
+                    (7 - (this.greenValues[i * 2 + 96] >> 5)));
             }
 
             for (int i = 0; i < 36; i++)
             {
-                this.dataPacket[2][i + 28] = (byte)(this.blueValues[i * 2 + 1] << 4 | this.blueValues[i * 2]);
+                this.dataPacket[2][i + 28] = (byte)(
+                    (7 - (this.blueValues[i * 2 + 1] >> 5) << 4 | 
+                    (7 - (this.blueValues[i * 2] >> 5))));
             }
 
             for (int i = 0; i < 36; i++)
             {
-                this.dataPacket[3][i + 4] = (byte)(this.blueValues[i * 2 + 73] << 4 | this.blueValues[i * 2 + 72]);
+                this.dataPacket[3][i + 4] = (byte)(
+                    (7 - (this.blueValues[i * 2 + 73] >> 5) << 4 | 
+                    (7 - (this.blueValues[i * 2 + 72] >> 5))));
             }
 
             this.SendUsbMessage(dataPacket[0]);

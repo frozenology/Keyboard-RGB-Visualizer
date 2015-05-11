@@ -10,7 +10,7 @@ namespace KeybaordAudio
     using System.Linq;
     using System.Text;
 
-    public class ConsoleWriter : IWriter
+    public class ConsoleWriter 
     {
         public void Write(int iter, byte[] fftData)
         {
